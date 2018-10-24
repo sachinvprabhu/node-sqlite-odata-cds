@@ -1,0 +1,87 @@
+const fs = require('fs');
+const path = require('path');
+const sqlite3 = require('sqlite3').verbose();
+const express = require("express");
+
+const jsonxml = require('jsontoxml');
+
+const odata = require('./dataservice');
+
+//const routes = require('express').Router();
+
+
+module.exports = function(config){
+	return function(req,res,next){
+		
+		if(req.method === "GET" && req.path === "/"){
+			odata.getServiceRoute(config.DATABASE,config.PROJECT).then(function(rootData){
+				res.send(rootData);
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			})
+		} else if(req.method === "GET" && req.path.match(/([\$])metadata/)){
+			odata.metadata(config.DATABASE,config.PROJECT).then(function(metadata){
+				res.header('Content-Type', 'application/xml').send(jsonxml(metadata));
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			});
+		} else if(req.method === "GET" && req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/)){
+			// getEntitySet
+			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/).toString().replace(/Set[\(\)]*$/,"");
+			
+			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set`;
+			odata.getTableData(config.DATABASE,config.PROJECT, table, uriPrefix).then(function(entitySet){
+				res.send(entitySet);
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			});
+			
+		} else if(req.method === "GET" && req.path.match(/[a-zA-Z0-9_]*Set\(.*\)$/)){
+			// getEntity
+			
+			var entity = req.path.match(/[a-zA-Z0-9_]*\(.*\)$/).toString(); // something like "Business_partnersSet(business_partner_number='2')"
+			
+			var table = entity.match(/[a-zA-Z0-9_]*Set/).toString().replace("Set","");
+			
+			var key = entity.match(/\(.*\)$/).toString();
+			
+			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set${key}`;
+			
+			odata.getEntry(config.DATABASE,config.PROJECT, table, key, uriPrefix).then(function(entitySet){
+				res.send(entitySet);
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			});
+			
+		}  else if(req.method === "DELETE" && req.path.match(/[a-zA-Z0-9_]*Set\(.*\)$/)){
+			// deleteEntity
+			
+			var entity = req.path.match(/[a-zA-Z0-9_]*\(.*\)$/).toString(); // something like "Business_partnersSet(business_partner_number='2')"
+			
+			var table = entity.match(/[a-zA-Z0-9_]*Set/).toString().replace("Set","");
+			
+			var key = entity.match(/\(.*\)$/).toString();
+			
+			odata.deleteEntry(config.DATABASE,config.PROJECT, table, key).then(function(deletedRows){
+				res.sendStatus(204).send("");// row count will be integer
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			});
+			
+		} else if(req.method === "POST" && req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/)){ // Create entity
+		
+			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/).toString().replace(/Set[\(\)]*$/,"");
+			
+			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/`;
+			
+			odata.createEntry(config.DATABASE, config.PROJECT, table, req.body, uriPrefix).then(function(entity){
+				res.send(entity);
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			});
+			
+		} else {
+			next();
+		}
+	};
+};
