@@ -24,9 +24,14 @@ Active developers are requested to fork or provide feedback
   + Building Access level protection
 
 # How to Use
+```
+# Import module sqlite-odata-cds
+$ npm install https://github.com/sachinvprabhu/node-sqlite-odata-cds
+```
+
 ```javascript
-// Import module node-sqlite-odata-cds
-const oData = require('./node-sqlite-odata-cds');
+const express = require('express');
+const oData = require('sqlite-odata-cds');
 
 const app = express();
 app.use(express.json());
@@ -51,11 +56,11 @@ http://localhost:3000/ProjectX/SQLite/OData/$metadata
 Sample Output
 ```
 <edmx:Edmx xmlns:edmx="http://schemas.microsoft.com/ado/2007/06/edmx" Version="1.0">
-<edmx:DataServices xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" m:DataServiceVersion="1.0">
-    <Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="Test">
-        <EntityContainer Name="Test_entities">
-        <EntitySet Name="Business_partnersSet" EntityType="Test.Business_partners"/>
-        </EntityContainer>
+    <edmx:DataServices xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" m:DataServiceVersion="1.0">
+        <Schema xmlns="http://schemas.microsoft.com/ado/2008/09/edm" Namespace="Test">
+            <EntityContainer Name="Test_entities">
+                <EntitySet Name="Business_partnersSet" EntityType="Test.Business_partners"/>
+            </EntityContainer>
             <EntityType Name="Business_partners">
                 <Key>
                     <PropertyRef Name="business_partner_number"/>
