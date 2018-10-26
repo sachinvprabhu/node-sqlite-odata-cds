@@ -30,7 +30,12 @@ module.exports = function(config){
 			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/).toString().replace(/Set[\(\)]*$/,"");
 			
 			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set`;
-			odata.getTableData(config.DATABASE,config.PROJECT, table, uriPrefix).then(function(entitySet){
+			
+			odata.getTableData(config.DATABASE,config.PROJECT, table, uriPrefix, req.query.$filter, req.query.$orderby, req.query.$top, req.query.$skip).then(function(entitySet){
+				//inlinecount to be implemented
+				if(req.query.$inlinecount === "allpages"){
+					entitySet.d.__count = entitySet.d.results.length;
+				}
 				res.send(entitySet);
 			}).catch(function(err){
 				res.status(500).send(err.message);

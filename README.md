@@ -15,10 +15,11 @@ Active developers are requested to fork or provide feedback
   + List Table Entries
   + Get Specific Entry with Primary Key
   + Delete an Entry
+  + Update an Entry
+  + Filters Implementation for List fetch operation
+  + $top and $skip operations
 
 ### To be developed
-  + Update Entry
-  + Filters Implementation for List fetch operation
   + Deep Entity CRUD
   + Protection against SQL Injection
   + Building Access level protection

@@ -1,6 +1,7 @@
 const database = require('./database');
 const underscore = require('underscore');
 const datatypeFormatter = require("./datatypes");
+const filterParser = require("./filterParser");
 module.exports = {
 	
 	createEntry : function(dbPath, projectName, tableName, data, uriPrefix){
@@ -106,7 +107,7 @@ module.exports = {
 			});
 		});
 	},
-	getTableData : function(dbPath, projectName, tableName, uriPrefix, filters, sorters){
+	getTableData : function(dbPath, projectName, tableName, uriPrefix, filters, sorters, top, skip){
 		
 		return new Promise(function(resolve,reject){
 		
@@ -115,9 +116,16 @@ module.exports = {
 			var filterString = "";
 			if(filters){
 				//convert filters to where clause here
+				filterString = filterParser(filters);
 			}
 			
-			var query = "SELECT * FROM "+tableName+(filterString?(" WHERE "+filterString):"");
+			var query = "SELECT * FROM "+tableName+(filterString?(" WHERE "+filterString):"")+(sorters?(" ORDER BY "+sorters):"");
+			if(top){
+				query+=" LIMIT "+top;
+				if(skip){
+					query+=" OFFSET "+skip;
+				}
+			}
 			Promise.all([DB.query("PRAGMA table_info("+tableName+")"),DB.query(query)]).then(function(arr){
 				var columns = arr[0]//table columns data,
 				var data = arr[1]//table contents
