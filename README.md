@@ -77,3 +77,5 @@ Sample Output
     </edmx:DataServices>
 </edmx:Edmx>
 ```
+
+You can download a sample Database from [here](http://www.sqlitetutorial.net/sqlite-sample-database/) A good example of music album store.
