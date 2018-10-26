@@ -80,6 +80,22 @@ module.exports = function(config){
 				res.status(500).send(err.message);
 			});
 			
+		} else if(req.method === "PUT" && req.path.match(/[a-zA-Z0-9_]*Set\(.*\)$/)){ // Update entity
+		
+			var entity = req.path.match(/[a-zA-Z0-9_]*\(.*\)$/).toString(); // something like "Business_partnersSet(business_partner_number='2')"
+			
+			var table = entity.match(/[a-zA-Z0-9_]*Set/).toString().replace("Set","");
+			
+			var key = entity.match(/\(.*\)$/).toString();
+			
+			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set${key}`;
+			
+			odata.updateEntry(config.DATABASE, config.PROJECT, table, key, req.body, uriPrefix).then(function(entity){
+				res.send(entity);
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			});
+			
 		} else {
 			next();
 		}

@@ -22,7 +22,6 @@ module.exports = {
 					}
 				});
 				var query = `INSERT INTO ${tableName}(${columnNames.join(',')}) VALUES(${placeholders.join(',')})`;
-				
 				DB.execute(query,values).then(function(response){
 					data[primaryKeys[0]] = response.lastID;
 					data.__metadata = {
@@ -42,7 +41,7 @@ module.exports = {
 	getEntry : function(dbPath, projectName, tableName, key, uriPrefix){
 		return new Promise(function(resolve,reject){
 			var DB = new database(dbPath);
-			var query = `SELECT * FROM ${tableName} WHERE ${key}`;
+			var query = `SELECT * FROM ${tableName} WHERE ${key.replace(/,/g," AND ")}`;
 			DB.get(query).then(function(data){
 				if(data){
 					data.__metadata = {
@@ -56,6 +55,44 @@ module.exports = {
 			}).catch(function(err){
 				reject(err);
 			});
+		});	
+	},
+	updateEntry : function(dbPath, projectName, tableName, key, data, uriPrefix){
+		var that = this;
+		return new Promise(function(resolve,reject){
+			var DB = new database(dbPath);
+			
+			if( key && key.length > 2 ){ // key should not come as '()' // need to check if all key fields are present in key string
+				DB.query(`PRAGMA table_info(${tableName})`).then(function(columns){
+					debugger;
+					var columnNames = [];
+					var values = [];
+					columns.forEach(function(column){
+						//primary keys cannot be updated
+						if(!column.pk && data[column.name] !== null && data[column.name] !== undefined ){
+							columnNames.push(column.name+"=?");
+							values.push(data[column.name]);
+						}
+					});
+					var query = `UPDATE ${tableName} SET ${columnNames.join()} WHERE ${key.replace(/,/g," AND ")}`;
+					
+					DB.execute(query,values).then(function(response){
+						that.getEntry(dbPath, projectName, tableName, key, uriPrefix).then(function(entry){
+							resolve(entry);
+						}).catch(function(error){
+							reject(error);
+						})
+					}).catch(function(error){
+						reject(error)
+					});
+					
+				}).catch(function(error){
+					reject(error)
+				})
+			} else {
+				reject(new Error("Invalid Key identifier"));
+			}
+			
 		});	
 	},
 	deleteEntry : function(dbPath, projectName, tableName, key, uriPrefix){
@@ -93,7 +130,15 @@ module.exports = {
 					}
 				}
 				data.forEach(function(row){
-					if(primaryKeys.length == 1){ // if table has single primary key
+					if(primaryKeys.length === 0){ // if table has no primary key
+						var columnValues = underscore.map(columns,function(column){
+							return `${column.name}='${row[column.name]}'`;
+						});
+						row.__metadata = {
+							"uri" : uriPrefix+"("+columnValues.join(",")+")",
+							"type" : projectName+"."+tableName
+						}
+					} else if(primaryKeys.length === 1){ // if table has single primary key
 						row.__metadata = {
 							"uri" : uriPrefix+"("+primaryKeys[0]+"='"+row[primaryKeys[0]]+"')",
 							"type" : projectName+"."+tableName
@@ -183,16 +228,18 @@ module.exports = {
 							};
 							table.children.push(column);
 						});
-						// if no primary keys found, then add all columns to Key - To be implemented
+						// if no primary keys found, then add all columns to Key
 						if(!hasPrimaryKey){
 							table.children.unshift({
 								name:"Key",
-								children:[{
-									name:"PropertyRef",
-									attrs:{
-										Name:metadata[i][0].name
-									}
-								}]
+								children:underscore.map(metadata[i],function(column){
+									return {
+										name:"PropertyRef",
+										attrs:{
+											Name:column.name
+										}
+									};
+								})
 							});
 						}
 						schema.push(table);
@@ -230,11 +277,9 @@ module.exports = {
 							}]
 						}]
 					);
-					
 				}).catch(function(err){
 					reject(err);
 				});
-			
 			}).catch(function(err){
 				reject(err);
 			});
