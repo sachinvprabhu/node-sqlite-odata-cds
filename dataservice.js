@@ -191,103 +191,154 @@ module.exports = {
 			
 			DB.query("SELECT name,type FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite%'").then(function(tables){
 				var tableInfos = [];
+				var foreignKeys = [];
 				tables.forEach(function(table){
-					tableInfos.push(DB.query("PRAGMA table_info("+table.name+")"));
+					tableInfos.push(DB.query(`PRAGMA table_info(${table.name})`));
+					foreignKeys.push(DB.query(`PRAGMA foreign_key_list(${table.name})`));
 				})
-				Promise.all(tableInfos).then(function(metadata){
-					//all table info read successful
-					var schema = [];
-					var entityContainer = {
-						name:"EntityContainer",
-						attrs:{
-							"Name":(projectName+".entities").split(".").join("_")
-						},
-						children:[]
-					}
-					for(var i in tables){
-						var table = {
-							name:"EntityType",
+				
+				Promise.all(foreignKeys).then(function(relations){
+					Promise.all(tableInfos).then(function(metadata){
+						//console.log(relations);
+						//all table info read successful
+						var schema = [];
+						var entityContainer = {
+							name:"EntityContainer",
 							attrs:{
-								"Name":tables[i].name
+								"Name":(projectName+".entities").split(".").join("_")
 							},
 							children:[]
-						};
-						var hasPrimaryKey = false;
-						metadata[i].forEach(function(meta){
-							if(meta.pk){
-								table.children.push({
-									name:"Key",
-									children:[{
-										name:"PropertyRef",
-										attrs:{
-											Name:meta.name
-										}
-									}]
-								});
-								 hasPrimaryKey = true;
-							}
-							var column = {
-								name:"Property",
-								attrs:{
-									Name:meta.name,
-									Type:datatypeFormatter(meta.type),
-									Nullable:(!meta.notnull)
-								}
-							};
-							table.children.push(column);
-						});
-						// if no primary keys found, then add all columns to Key
-						if(!hasPrimaryKey){
-							table.children.unshift({
-								name:"Key",
-								children:underscore.map(metadata[i],function(column){
-									return {
-										name:"PropertyRef",
-										attrs:{
-											Name:column.name
-										}
-									};
-								})
-							});
 						}
-						schema.push(table);
-						entityContainer.children.push({
-							name:"EntitySet",
-							attrs:{
-								"Name":tables[i].name+"Set",
-								"EntityType":(projectName+"."+tables[i].name)
+						for(var i in tables){
+							var table = {
+								name:"EntityType",
+								attrs:{
+									"Name":tables[i].name
+								},
+								children:[]
+							};
+							var hasPrimaryKey = false;
+							metadata[i].forEach(function(meta){
+								if(meta.pk){
+									table.children.push({
+										name:"Key",
+										children:[{
+											name:"PropertyRef",
+											attrs:{
+												Name:meta.name
+											}
+										}]
+									});
+									 hasPrimaryKey = true;
+								}
+								var column = {
+									name:"Property",
+									attrs:{
+										Name:meta.name,
+										Type:datatypeFormatter(meta.type),
+										Nullable:(!meta.notnull)
+									}
+								};
+								table.children.push(column);
+							});
+							// if no primary keys found, then add all columns to Key
+							if(!hasPrimaryKey){
+								table.children.unshift({
+									name:"Key",
+									children:underscore.map(metadata[i],function(column){
+										return {
+											name:"PropertyRef",
+											attrs:{
+												Name:column.name
+											}
+										};
+									})
+								});
 							}
-						})
-					}
-					schema.unshift(entityContainer);
-					
-					resolve([{
-							"name":"edmx:Edmx",
-							"attrs":{
-								"xmlns:edmx": "http://schemas.microsoft.com/ado/2007/06/edmx",
-								"Version":"1.0"
-							},
-							"children":[{
-								"name":"edmx:DataServices",
+							schema.push(table);//table is EntityType
+							entityContainer.children.push({
+								name:"EntitySet",
+								attrs:{
+									"Name":tables[i].name+"Set",
+									"EntityType":(projectName+"."+tables[i].name)
+								}
+							})
+						}
+						underscore.each(relations,function(relation,index){
+							
+							underscore.each(relation,function(relatesTo){
+								
+								var association = {
+									name:"Association",
+									attrs:{
+										Name:(relatesTo.table+"Set_to_"+tables[index].name+"Set")
+									},
+									children:[
+										{name:"End", attrs:{Role:relatesTo.table +"Set"+(tables[index].name === relatesTo.table ? "1":""), Type:projectName+"."+relatesTo.table, Multiplicity:"1"}},
+										{name:"End", attrs:{Role:tables[index].name+"Set", Type:projectName+"."+tables[index].name, Multiplicity:"*"}},
+										{
+											name:"ReferentialConstraint",
+											children:[
+												{
+													name:"Principal", 
+													attrs:{Role:relatesTo.table +"Set"+(tables[index].name === relatesTo.table ? "1":"")},
+													children:[{name:"PropertyRef",attrs:{Name:relatesTo.to}}]
+												},
+												{name:"Dependent", attrs:{Role:tables[index].name+"Set"},children:[{name:"PropertyRef",attrs:{Name:relatesTo.from}}]}
+											]
+										}
+									]
+								}
+								schema.push(association);
+								
+								entityContainer.children.push({
+									name:"AssociationSet",
+									attrs:{
+										"Name":relatesTo.table+"Set_to_"+tables[index].name+"Set",
+										"Association":(projectName+"."+relatesTo.table+"Set_to_"+tables[index].name+"Set")
+									},
+									children:[
+										{name:"End", attrs:{Role:tables[index].name+"Set", EntitySet:tables[index].name+"Set"}},
+										{name:"End", attrs:{Role:relatesTo.table +"Set"+(tables[index].name === relatesTo.table ? "1":""), EntitySet:relatesTo.table+"Set"}}
+									]
+								});
+								
+							});
+							
+						});
+						schema.unshift(entityContainer);
+
+						resolve([{
+								"name":"edmx:Edmx",
 								"attrs":{
-									"xmlns:m":"http://schemas.microsoft.com/ado/2007/08/dataservices/metadata",
-									"m:DataServiceVersion":"1.0"
+									"xmlns:edmx": "http://schemas.microsoft.com/ado/2007/06/edmx",
+									"Version":"1.0"
 								},
 								"children":[{
-										"name":"Schema",
-										"attrs":{
-											"xmlns":"http://schemas.microsoft.com/ado/2008/09/edm",
-											"Namespace":projectName
-										},
-										"children":schema
-									}
-								]
+									"name":"edmx:DataServices",
+									"attrs":{
+										"xmlns:m":"http://schemas.microsoft.com/ado/2007/08/dataservices/metadata",
+										"m:DataServiceVersion":"1.0"
+									},
+									"children":[{
+											"name":"Schema",
+											"attrs":{
+												"xmlns":"http://schemas.microsoft.com/ado/2008/09/edm",
+												"Namespace":projectName
+											},
+											"children":schema
+										}
+									]
+								}]
 							}]
-						}]
-					);
-				}).catch(function(err){
-					reject(err);
+						);
+					}).catch(function(err){
+						reject(err);
+					});	
+				}).catch(function(error){
+					reject(error);
 				});
+				
 			}).catch(function(err){
 				reject(err);
 			});
