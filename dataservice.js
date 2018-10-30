@@ -42,19 +42,51 @@ module.exports = {
 	getEntry : function(dbPath, projectName, tableName, key, uriPrefix){
 		return new Promise(function(resolve,reject){
 			var DB = new database(dbPath);
-			var query = `SELECT * FROM ${tableName} WHERE ${key.replace(/,/g," AND ")}`;
-			DB.get(query).then(function(data){
-				if(data){
-					data.__metadata = {
-						"uri" : `${uriPrefix}`,
-						"type" : `${projectName}.${tableName}`
+			
+			Promise.all([
+				DB.query(`PRAGMA foreign_key_list(${tableName})`),
+				DB.get(`SELECT * FROM ${tableName} WHERE ${key.replace(/,/g," AND ")}`),
+				DB.query(`select name from sqlite_master where sql like '%REFERENCES%${tableName}%'`)
+			]).then(function(results){
+				
+				var data = results[1];
+				
+				underscore.each(results[0],function(foreignKey){
+					return data[foreignKey.table] = {
+						"__deferred":{
+							"uri":uriPrefix.replace(/[0-9a-zA-Z_]*Set\(.*\)/,"")+`${foreignKey.table}Set(${foreignKey.to}='${data[foreignKey.from]}')`
+						}
 					};
-					resolve({d:data});
-				} else {
-					reject(new Error("No Data found"));
-				}
-			}).catch(function(err){
-				reject(err);
+				});
+				var referenceTables = underscore.pluck(results[2],"name");
+				
+				Promise.all(underscore.map(referenceTables,function(referenceTableName){
+					return DB.query(`PRAGMA foreign_key_list(${referenceTableName})`);
+				})).then(function(referenceKeyList){
+					if(data){
+						data.__metadata = {
+							"uri" : `${uriPrefix}`,
+							"type" : `${projectName}.${tableName}`
+						};
+						referenceKeyList.forEach(function(referenceKey,index){
+							
+							referenceKey = underscore.find(referenceKey,{table:tableName});
+							
+							data[referenceTables[index]] = {
+								"__deferred":{
+									"uri":uriPrefix.replace(/[0-9a-zA-Z_]*Set\(.*\)/,"")+`${referenceTables[index]}Set?$filter=${referenceKey.from} eq '${data[referenceKey.to]}'`,
+								}
+							};
+						});
+						resolve({d:data});
+					} else {
+						reject(new Error("No Data found"));
+					}
+				}).catch(function(error){
+					reject(error);
+				});
+			}).catch(function(error){
+				reject(error);
 			});
 		});	
 	},
@@ -362,7 +394,7 @@ module.exports = {
 										}
 									})
 								}
-							})
+							});
 							
 							entityTypes = entityTypes.concat(underscore.pluck(associations,"association"));
 							
@@ -392,202 +424,31 @@ module.exports = {
 										]
 									};
 								}))
-							}])
-							
-							
+							}]);
 							
 							resolve([{
-									"name":"edmx:Edmx",
+								"name":"edmx:Edmx",
+								"attrs":{
+									"xmlns:edmx": "http://schemas.microsoft.com/ado/2007/06/edmx",
+									"Version":"1.0"
+								},
+								"children":[{
+									"name":"edmx:DataServices",
 									"attrs":{
-										"xmlns:edmx": "http://schemas.microsoft.com/ado/2007/06/edmx",
-										"Version":"1.0"
+										"xmlns:m":"http://schemas.microsoft.com/ado/2007/08/dataservices/metadata",
+										"m:DataServiceVersion":"1.0"
 									},
 									"children":[{
-										"name":"edmx:DataServices",
-										"attrs":{
-											"xmlns:m":"http://schemas.microsoft.com/ado/2007/08/dataservices/metadata",
-											"m:DataServiceVersion":"1.0"
-										},
-										"children":[{
-												"name":"Schema",
-												"attrs":{
-													"xmlns":"http://schemas.microsoft.com/ado/2008/09/edm",
-													"Namespace":projectName
-												},
-												"children":entityTypes
-											}
-										]
-									}]
+											"name":"Schema",
+											"attrs":{
+												"xmlns":"http://schemas.microsoft.com/ado/2008/09/edm",
+												"Namespace":projectName
+											},
+											"children":entityTypes
+										}
+									]
 								}]
-							);
-							
-							
-							/*
-							//console.log(relations);
-							//all table info read successful
-							for(var i in tables){
-								var table = {
-									name:"EntityType",
-									attrs:{
-										"Name":tables[i].name
-									},
-									children:[]
-								};
-								var hasPrimaryKey = false;
-								metadata[i].forEach(function(meta){
-									if(meta.pk){
-										table.children.push({
-											name:"Key",
-											children:[{
-												name:"PropertyRef",
-												attrs:{
-													Name:meta.name
-												}
-											}]
-										});
-										 hasPrimaryKey = true;
-									}
-									var column = {
-										name:"Property",
-										attrs:{
-											Name:meta.name,
-											Type:datatypeFormatter(meta.type),
-											Nullable:(!meta.notnull)
-										}
-									};
-									table.children.push(column);
-								});
-								// if no primary keys found, then add all columns to Key
-								if(!hasPrimaryKey){
-									table.children.unshift({
-										name:"Key",
-										children:underscore.map(metadata[i],function(column){
-											return {
-												name:"PropertyRef",
-												attrs:{
-													Name:column.name
-												}
-											};
-										})
-									});
-								}
-								
-								
-								
-								
-								
-								
-								//debugger;
-								
-								var relatedTables = underscore.find()
-								
-								relations[i].forEach(function(relation){
-									console.log(tables[i].name, relation.from, relation.table, relation.to )
-									
-									table.children.push({
-										name:"NavigationProperty",
-										attrs:{
-											Name:relation.table,
-											FromRole:tables[i].name+"Set",
-											ToRole:relation.table+"Set",
-											Relationship:(projectName+"."+relation.table+"Set_to_"+tables[i].name+"Set")
-										}
-									});
-									
-									
-								})
-								
-								/*
-								
-								aTables.forEach(function(referencingTables,index){
-									referencingTables.forEach(function(referencingTable){
-
-										console.log(
-											tables[index].name,
-											"uses",
-											referencingTable.name
-										);
-									});
-								});
-								
-								
-								
-								
-								
-								/*
-
-								relations[i].forEach(function(navigationProperty){
-									table.children.push({
-										name:"NavigationProperty",
-										attrs:{
-											Name:navigationProperty.table,
-											FromRole:tables[i].name+"Set",
-											ToRole:navigationProperty.table+"Set",
-											Relationship:(projectName+"."+navigationProperty.table+"Set_to_"+tables[i].name+"Set")
-										}
-									});
-								});
-
-								
-								* /
-								schema.push(table);//table is EntityType
-								
-								entityContainer.children.push({
-									name:"EntitySet",
-									attrs:{
-										"Name":tables[i].name+"Set",
-										"EntityType":(projectName+"."+tables[i].name)
-									}
-								})
-							}
-							underscore.each(relations,function(relation,index){
-								
-								underscore.each(relation,function(relatesTo){
-
-									var association = {
-										name:"Association",
-										attrs:{
-											Name:(relatesTo.table+"Set_to_"+tables[index].name+"Set")
-										},
-										children:[
-											{name:"End", attrs:{Role:relatesTo.table +"Set"+(tables[index].name === relatesTo.table ? "1":""), Type:projectName+"."+relatesTo.table, Multiplicity:"1"}},
-											{name:"End", attrs:{Role:tables[index].name+"Set", Type:projectName+"."+tables[index].name, Multiplicity:"*"}},
-											{
-												name:"ReferentialConstraint",
-												children:[
-													{
-														name:"Principal", 
-														attrs:{Role:relatesTo.table +"Set"+(tables[index].name === relatesTo.table ? "1":"")},
-														children:[{name:"PropertyRef",attrs:{Name:relatesTo.to}}]
-													},
-													{name:"Dependent", attrs:{Role:tables[index].name+"Set"},children:[{name:"PropertyRef",attrs:{Name:relatesTo.from}}]}
-												]
-											}
-										]
-									}
-									schema.push(association);
-
-									entityContainer.children.push({
-										name:"AssociationSet",
-										attrs:{
-											"Name":relatesTo.table+"Set_to_"+tables[index].name+"Set",
-											"Association":(projectName+"."+relatesTo.table+"Set_to_"+tables[index].name+"Set")
-										},
-										children:[
-											{name:"End", attrs:{Role:tables[index].name+"Set", EntitySet:tables[index].name+"Set"}},
-											{name:"End", attrs:{Role:relatesTo.table +"Set"+(tables[index].name === relatesTo.table ? "1":""), EntitySet:relatesTo.table+"Set"}}
-										]
-									});
-
-								});
-
-							});
-							schema.unshift(entityContainer);
-							
-							
-							
-							
-							*/
+							}]);
 						}).catch(function(err){
 							reject(err);
 						});	
