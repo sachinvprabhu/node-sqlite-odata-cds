@@ -31,7 +31,7 @@ module.exports = function(config){
 			
 			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set`;
 			
-			odata.getTableData(config.DATABASE,config.PROJECT, table, uriPrefix, req.query.$filter, req.query.$orderby, req.query.$top, req.query.$skip).then(function(entitySet){
+			odata.getTableData(config.DATABASE,config.PROJECT, table, uriPrefix, (req.query.$filter||1) +" AND "+ (req.path.match(/\(.+\)/)||1).toString(), req.query.$orderby, req.query.$top, req.query.$skip).then(function(entitySet){
 				//inlinecount to be implemented
 				if(req.query.$inlinecount === "allpages"){
 					entitySet.d.__count = entitySet.d.results.length;
@@ -68,7 +68,7 @@ module.exports = function(config){
 			var key = entity.match(/\(.*\)$/).toString();
 			
 			odata.deleteEntry(config.DATABASE,config.PROJECT, table, key).then(function(deletedRows){
-				res.sendStatus(204).send("");// row count will be integer
+				res.status(204).send("");
 			}).catch(function(err){
 				res.status(500).send(err.message);
 			});

@@ -5,37 +5,79 @@ const filterParser = require("./filterParser");
 module.exports = {
 	
 	createEntry : function(dbPath, projectName, tableName, data, uriPrefix){
-		
+		var dataservice = this;
 		return new Promise(function(resolve,reject){
 			var DB = new database(dbPath);
-			DB.query(`PRAGMA table_info(${tableName})`).then(function(columns){
+			
+			
+			
+			Promise.all([DB.query(`PRAGMA table_info(${tableName})`),DB.query(`SELECT * FROM sqlite_sequence WHERE name='${tableName}'`)]).then(function(arr){
+				var columns = arr[0];
+				
+				var aiPresent = arr[1].length;// Auto Increment Present
+				
 				var columnNames = [];
 				var values = [];
 				var placeholders=[];
-				var primaryKeys = [];
-				columns.forEach(function(column){
-					if(column.pk){
-						primaryKeys.push(column.name)
-					} else if(data[column.name] !== null && data[column.name] !== undefined ){
-						columnNames.push(column.name);
-						values.push(data[column.name]);
-						placeholders.push("?");
-					}
-				});
+				
+				/**
+					Pending Optimization
+				*/
+				if(aiPresent){
+					/*
+						If auto increment is found, insert all columns other than PK column to the SQL
+					*/
+					columns.forEach(function(column){
+						if(!column.pk && data[column.name] !== null && data[column.name] !== undefined ){
+							columnNames.push(column.name);
+							values.push(data[column.name]);
+							placeholders.push("?");
+						}
+					});
+				} else {
+					/*
+						Otherwise, insert all columns to the SQL
+					*/
+					columns.forEach(function(column){
+						if( data[column.name] !== null && data[column.name] !== undefined ){
+							columnNames.push(column.name);
+							values.push(data[column.name]);
+							placeholders.push("?");
+						}
+					});
+				}
+				
 				var query = `INSERT INTO ${tableName}(${columnNames.join(',')}) VALUES(${placeholders.join(',')})`;
 				DB.execute(query,values).then(function(response){
-					data[primaryKeys[0]] = response.lastID;
-					data.__metadata = {
-						"uri" : uriPrefix+tableName+"Set("+primaryKeys[0]+"='"+response.lastID+"')",
-						"type" : projectName+"."+tableName
-					};
-					resolve({d:{results:data}});
+					
+					var keyColumnNames = underscore.pluck(underscore.filter(columns,"pk"),"name");
+					
+					var key;
+					
+					if(aiPresent){ // will have only 1 primary key which will be auto incremented
+						key = keyColumnNames[0]+"="+response.lastID;
+					} else if( keyColumnNames.length ) { // add key columns & values to URI
+						key = underscore.map(keyColumnNames,function(columnName){
+							return `${columnName}='${data[columnName]}'`;
+						}).join(",");
+					} else { //No PK found, every column should be added to key columns
+						key = underscore.map(columnNames,function(columnName){
+							return `${columnName}='${data[columnName]}'`;
+						}).join(",");
+					}
+					dataservice.getEntry(dbPath, projectName, tableName, key, `${uriPrefix}${tableName}Set(${key})`).then(function(response){
+						resolve(response);
+					}).catch(function(error){
+						reject(error);
+					});
+					//resolve({d:{results:data}});
+					
 				}).catch(function(error){
 					reject(error);
 				});
 			}).catch(function(error){
 				reject(error);
-			})
+			});
 		});
 	},
 	
@@ -51,40 +93,42 @@ module.exports = {
 				
 				var data = results[1];
 				
-				underscore.each(results[0],function(foreignKey){
-					return data[foreignKey.table] = {
-						"__deferred":{
-							"uri":uriPrefix.replace(/[0-9a-zA-Z_]*Set\(.*\)/,"")+`${foreignKey.table}Set(${foreignKey.to}='${data[foreignKey.from]}')`
-						}
-					};
-				});
-				var referenceTables = underscore.pluck(results[2],"name");
+				if(data){
 				
-				Promise.all(underscore.map(referenceTables,function(referenceTableName){
-					return DB.query(`PRAGMA foreign_key_list(${referenceTableName})`);
-				})).then(function(referenceKeyList){
-					if(data){
+					underscore.each(results[0],function(foreignKey){
+						return data[foreignKey.table] = {
+							"__deferred":{
+								"uri":uriPrefix.replace(/[0-9a-zA-Z_]*Set\(.*\)/,`${foreignKey.table}Set(${foreignKey.to}='${data[foreignKey.from]}')`)
+							}
+						};
+					});
+					var referenceTables = underscore.pluck(results[2],"name");
+
+					Promise.all(underscore.map(referenceTables,function(referenceTableName){
+						return DB.query(`PRAGMA foreign_key_list(${referenceTableName})`);
+					})).then(function(referenceKeyList){
+						
 						data.__metadata = {
 							"uri" : `${uriPrefix}`,
 							"type" : `${projectName}.${tableName}`
 						};
 						referenceKeyList.forEach(function(referenceKey,index){
-							
+
 							referenceKey = underscore.find(referenceKey,{table:tableName});
-							
+
 							data[referenceTables[index]] = {
 								"__deferred":{
-									"uri":uriPrefix.replace(/[0-9a-zA-Z_]*Set\(.*\)/,"")+`${referenceTables[index]}Set?$filter=${referenceKey.from} eq '${data[referenceKey.to]}'`,
+									"uri":uriPrefix.replace(/[0-9a-zA-Z_]*Set\(.*\)/,`${tableName}Set(${referenceKey.from}='${data[referenceKey.to]}')/${referenceTables[index]}Set`)
 								}
 							};
 						});
 						resolve({d:data});
-					} else {
-						reject(new Error("No Data found"));
-					}
-				}).catch(function(error){
-					reject(error);
-				});
+					}).catch(function(error){
+						reject(error);
+					});
+				} else {
+					reject(new Error("No Data found"));
+				}
 			}).catch(function(error){
 				reject(error);
 			});
@@ -97,28 +141,39 @@ module.exports = {
 			
 			if( key && key.length > 2 ){ // key should not come as '()' // need to check if all key fields are present in key string
 				DB.query(`PRAGMA table_info(${tableName})`).then(function(columns){
-					debugger;
 					var columnNames = [];
 					var values = [];
-					columns.forEach(function(column){
-						//primary keys cannot be updated
-						if(!column.pk && data[column.name] !== null && data[column.name] !== undefined ){
-							columnNames.push(column.name+"=?");
-							values.push(data[column.name]);
+					try {
+						columns.forEach(function(column){
+							//all PKs should be in key string
+							if(column.pk){
+								if( key.indexOf(column.name+"=") === -1 ){
+									throw new Error(column.name+" Key field is missing in URI");
+								}
+							} else 
+							//primary keys cannot be updated
+							if(data[column.name] !== null && data[column.name] !== undefined ){
+								columnNames.push(column.name+"=?");
+								values.push(data[column.name]);
+							}
+						});
+						if(!columnNames.length){
+							throw new Error("No fields to update");
 						}
-					});
-					var query = `UPDATE ${tableName} SET ${columnNames.join()} WHERE ${key.replace(/,/g," AND ")}`;
-					
-					DB.execute(query,values).then(function(response){
-						that.getEntry(dbPath, projectName, tableName, key, uriPrefix).then(function(entry){
-							resolve(entry);
+						var query = `UPDATE ${tableName} SET ${columnNames.join()} WHERE ${key.replace(/,/g," AND ")}`;
+
+						DB.execute(query,values).then(function(response){
+							that.getEntry(dbPath, projectName, tableName, key, uriPrefix).then(function(entry){
+								resolve(entry);
+							}).catch(function(error){
+								reject(error);
+							})
 						}).catch(function(error){
-							reject(error);
-						})
-					}).catch(function(error){
-						reject(error)
-					});
-					
+							reject(error)
+						});
+					} catch (error){
+						reject(error);
+					}
 				}).catch(function(error){
 					reject(error)
 				})
@@ -131,9 +186,9 @@ module.exports = {
 	deleteEntry : function(dbPath, projectName, tableName, key, uriPrefix){
 		return new Promise(function(resolve,reject){
 			var DB = new database(dbPath);
-			var query = `DELETE FROM ${tableName} WHERE ${key}`;
+			var query = `DELETE FROM ${tableName} WHERE ${key.replace(/,/g," AND ")}`;
 			DB.execute(query).then(function(statement){
-				resolve(statement.changes);
+				resolve();
 			}).catch(function(err){
 				reject(err);
 			});
@@ -211,7 +266,7 @@ module.exports = {
 							
 							row[relatedTableName] = {
 								"__deferred":{
-									"uri":uriPrefix.replace(/[0-9a-zA-Z_]*Set/,"")+`${relatedTableName}Set?$filter=${relationColumn.from} eq '${row[relationColumn.to]}'`
+									"uri":uriPrefix+`(${relationColumn.from}='${row[relationColumn.to]}')`+"/"+relatedTableName+"Set"
 								}
 							};
 						});
