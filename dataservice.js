@@ -280,6 +280,27 @@ module.exports = {
 			});
 		});	
 	},
+	getCount : function(dbPath, projectName, tableName, uriPrefix, filters){
+		
+		return new Promise(function(resolve,reject){
+		
+			var DB = new database(dbPath);
+			
+			var filterString = "";
+			if(filters){
+				//convert filters to where clause here
+				filterString = filterParser(filters);
+			}
+			
+			var query = "SELECT count(*) FROM "+tableName+(filterString?(" WHERE "+filterString):"");
+			
+			DB.get(query).then(function(values){
+				resolve(values["count(*)"]);
+			}).catch(function(err){
+				reject(err);
+			});
+		});
+	},
 	
 	getServiceRoute : function(dbPath){
 		return new Promise(function(resolve,reject){
@@ -456,7 +477,8 @@ module.exports = {
 							entityTypes = entityTypes.concat([{
 								name:"EntityContainer",
 								attrs:{
-									"Name":(projectName+"_entities")
+									"Name":(projectName+"_entities"),
+									"m:IsDefaultEntityContainer":"true"
 								},
 								children:underscore.map(tables,function(table,index){
 									return {

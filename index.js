@@ -25,6 +25,19 @@ module.exports = function(config){
 			}).catch(function(err){
 				res.status(500).send(err.message);
 			});
+		} else if(req.method === "GET" && req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*\/\$count$/)){
+			// getCount
+			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*/).toString().replace(/Set[\(\)]*$/,"");
+			
+			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set`;
+			
+			odata.getCount(config.DATABASE,config.PROJECT, table, uriPrefix, (req.query.$filter||1) +" AND "+ (req.path.match(/\(.+\)/)||1).toString()).then(function(count){
+				//inlinecount to be implemented
+				res.send(count.toString());
+			}).catch(function(err){
+				res.status(500).send(err.message);
+			});
+			
 		} else if(req.method === "GET" && req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/)){
 			// getEntitySet
 			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/).toString().replace(/Set[\(\)]*$/,"");
