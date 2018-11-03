@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-const express = require("express");
 
 const jsonxml = require('jsontoxml');
 
@@ -12,7 +11,9 @@ const odata = require('./dataservice');
 
 module.exports = function(config){
 	return function(req,res,next){
-		
+		if(req.method === "HEAD" && req.get("x-csrf-token") === "Fetch"){
+			res.set("x-csrf-token","CSRFNOTREQUIRED").status(204).send("");
+		}
 		if(req.method === "GET" && req.path === "/"){
 			odata.getServiceRoute(config.DATABASE,config.PROJECT).then(function(rootData){
 				res.send(rootData);
@@ -33,7 +34,7 @@ module.exports = function(config){
 			
 			odata.getCount(config.DATABASE,config.PROJECT, table, uriPrefix, (req.query.$filter||1) +" AND "+ (req.path.match(/\(.+\)/)||1).toString()).then(function(count){
 				//inlinecount to be implemented
-				res.send(count.toString());
+				res.header('Content-Type', 'text/plain').send(count.toString());
 			}).catch(function(err){
 				res.status(500).send(err.message);
 			});
@@ -98,7 +99,7 @@ module.exports = function(config){
 				res.status(500).send(err.message);
 			});
 			
-		} else if(req.method === "PUT" && req.path.match(/[a-zA-Z0-9_]*Set\(.*\)$/)){ // Update entity
+		} else if((req.method === "PUT" && req.path.match(/[a-zA-Z0-9_]*Set\(.*\)$/))||(req.method === "POST" && req.get("X-HTTP-Method") === "MERGE")){ // Update entity
 		
 			var entity = req.path.match(/[a-zA-Z0-9_]*\(.*\)$/).toString(); // something like "Business_partnersSet(business_partner_number='2')"
 			
@@ -117,5 +118,6 @@ module.exports = function(config){
 		} else {
 			next();
 		}
+		
 	};
 };

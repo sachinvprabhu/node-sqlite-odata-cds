@@ -9,8 +9,6 @@ module.exports = {
 		return new Promise(function(resolve,reject){
 			var DB = new database(dbPath);
 			
-			
-			
 			Promise.all([DB.query(`PRAGMA table_info(${tableName})`),DB.query(`SELECT * FROM sqlite_sequence WHERE name='${tableName}'`)]).then(function(arr){
 				var columns = arr[0];
 				
@@ -264,7 +262,7 @@ module.exports = {
 							
 							var relationColumn = underscore.find(relatedTableColumns[relatedTableIndex],{table:tableName});
 							
-							row[relatedTableName] = {
+							row[relatedTableName+"Set"] = {
 								"__deferred":{
 									"uri":uriPrefix+`(${relationColumn.from}='${row[relationColumn.to]}')`+"/"+relatedTableName+"Set"
 								}
@@ -463,7 +461,7 @@ module.exports = {
 									entityType.children.push({
 										name:"NavigationProperty",
 										attrs:{
-											Name:association.fromTable,
+											Name:association.fromTable+"Set",
 											FromRole:`${association.toTable}Set`,
 											ToRole:`${association.fromTable}Set`,
 											Relationship:`${projectName}.${association.association.attrs.Name}`

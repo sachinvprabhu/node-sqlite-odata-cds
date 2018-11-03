@@ -10,6 +10,7 @@ module.exports = function(query){
 		
 		var value = substringQuery.match(/\(.+\,/).toString();
 		value = value.substr(1,value.length-2);
+		value = value.replace(/\'/g,"");
 		value = `%${value}%`;
 		
 		query = query.replace(substringQuery,`${column} LIKE '${value}'`);
