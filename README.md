@@ -80,3 +80,7 @@ Sample Output
 ```
 
 You can download a sample Database from [here](http://www.sqlitetutorial.net/sqlite-sample-database/) A good example of music album store.
+
+
+[Sample Application](http://www.sqlitetutorial.net/sqlite-sample-database/) built using [SAP Ui5](https://sapui5.hana.ondemand.com/) gives brief of how this framework can be utilized on above sample database.
+
