@@ -327,7 +327,7 @@ module.exports = {
 			
 			var DB = new database(dbPath);
 			
-			DB.query("SELECT name,type FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite%'").then(function(tables){
+			DB.query("SELECT name,type FROM sqlite_master WHERE ( type='table' OR type='view' ) AND name NOT LIKE 'sqlite%'").then(function(tables){
 				var tableInfos = [];
 				var foreignKeys = [];
 				var backwordReferences = [];
