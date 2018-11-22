@@ -30,7 +30,7 @@ module.exports = function(config){
 			// getCount
 			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*/).toString().replace(/Set[\(\)]*$/,"");
 			
-			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set`;
+			var uriPrefix = `${req.baseUrl}/${table}Set`;
 			
 			odata.getCount(config.DATABASE,config.PROJECT, table, uriPrefix, (req.query.$filter||1) +" AND "+ (req.path.match(/\(.+\)/)||1).toString()).then(function(count){
 				//inlinecount to be implemented
@@ -43,7 +43,7 @@ module.exports = function(config){
 			// getEntitySet
 			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/).toString().replace(/Set[\(\)]*$/,"");
 			
-			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set`;
+			var uriPrefix = `${req.baseUrl}/${table}Set`;
 			
 			odata.getTableData(config.DATABASE,config.PROJECT, table, uriPrefix, (req.query.$filter||1) +" AND "+ (req.path.match(/\(.+\)/)||1).toString(), req.query.$orderby, req.query.$top, req.query.$skip).then(function(entitySet){
 				//inlinecount to be implemented
@@ -64,7 +64,7 @@ module.exports = function(config){
 			
 			var key = entity.match(/\(.*\)$/).toString();
 			
-			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set${key}`;
+			var uriPrefix = `${req.baseUrl}/${table}Set${key}`;
 			
 			odata.getEntry(config.DATABASE,config.PROJECT, table, key, uriPrefix).then(function(entitySet){
 				res.send(entitySet);
@@ -91,7 +91,7 @@ module.exports = function(config){
 		
 			var table = req.path.match(/[a-zA-Z0-9_]*Set[\(\)]*$/).toString().replace(/Set[\(\)]*$/,"");
 			
-			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/`;
+			var uriPrefix = `${req.baseUrl}/`;
 			
 			odata.createEntry(config.DATABASE, config.PROJECT, table, req.body, uriPrefix).then(function(entity){
 				res.send(entity);
@@ -107,7 +107,7 @@ module.exports = function(config){
 			
 			var key = entity.match(/\(.*\)$/).toString();
 			
-			var uriPrefix = `http${(req.secure?'s':'')}://${req.get('host')}${req.baseUrl}/${table}Set${key}`;
+			var uriPrefix = `${req.baseUrl}/${table}Set${key}`;
 			
 			odata.updateEntry(config.DATABASE, config.PROJECT, table, key, req.body, uriPrefix).then(function(entity){
 				res.send(entity);

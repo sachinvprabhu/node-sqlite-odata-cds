@@ -16,6 +16,12 @@ module.exports = function(query){
 		query = query.replace(substringQuery,`${column} LIKE '${value}'`);
 	}
 	
+	var numbers = query.match(/[0-9\.]+[lf]/g);
+	
+	numbers.forEach(function(numberString){
+		query = query.replace(numberString,numberString.substr(0,numberString.length-1));
+	})
+	
 	query = query.replace(/ gt /g,">")
 	.replace(/ ge /g,">=")
 	.replace(/ lt /g,"<")
