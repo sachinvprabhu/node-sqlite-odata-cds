@@ -29,6 +29,7 @@ module.exports = function(query){
 	.replace(/ lt /g,"<")
 	.replace(/ le /g,"<=")
 	.replace(/ eq /g,"=")
+	.replace(/ ne /g,"<>")
 	
 	
 	return query;
