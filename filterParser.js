@@ -1,5 +1,5 @@
 module.exports = function(query){
-	
+	query = query.replace(" eq null ", " is NULL ").replace(" ne null ", " is NOT NULL ");
 	var substringQuery = query.match(/substringof\(.*\)/);//substringof(abc,Name) something like this
 	if(substringQuery){
 		
@@ -16,7 +16,7 @@ module.exports = function(query){
 		query = query.replace(substringQuery,`${column} LIKE '${value}'`);
 	}
 	
-	var numbers = query.match(/[0-9\.]+[lf]/g);
+	var numbers = query.match(/ [0-9\.]+[lf]/g);
 	
 	if(numbers){
 		numbers.forEach(function(numberString){
