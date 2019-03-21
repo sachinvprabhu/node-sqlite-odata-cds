@@ -3,7 +3,7 @@ module.exports = function(query){
 	var substringQuery = query.match(/substringof\(.*\)/);//substringof(abc,Name) something like this
 	if(substringQuery){
 		
-		substringQuery = query.match(/substringof\(.*\)/).toString();
+		substringQuery = query.match(/substringof\(.*?\)/).toString();
 		
 		var column = substringQuery.match(/,[_a-zA-Z0-9]+\)/).toString();
 		column = column.substr(1,column.length-2);
