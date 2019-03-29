@@ -13,8 +13,9 @@ module.exports = function(config){
 	return function(req,res,next){
 		if(req.method === "HEAD" && req.get("x-csrf-token") === "Fetch"){
 			res.set("x-csrf-token","CSRFNOTREQUIRED").status(204).send("");
-		}
-		if(req.method === "GET" && req.path === "/"){
+		} else if(req.method === "OPTIONS"){
+			res.set("Allow","OPTIONS, HEAD, GET, DELETE, POST, PUT").status(204).send("");
+		} else if(req.method === "GET" && req.path === "/"){
 			odata.getServiceRoute(config.DATABASE,config.PROJECT).then(function(rootData){
 				res.send(rootData);
 			}).catch(function(err){
