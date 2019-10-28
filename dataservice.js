@@ -246,11 +246,18 @@ module.exports = {
 						});
 					}
 					
+					
+
 					tableOutput.forEach(function(row){
 						/*
 							Pending to add references in other tables for this table - This completes the deep entity extraction
 						*/
-						
+						columns.forEach(column=>{
+							if(column.type === "DATETIME"){
+								row[column.name] = `/Date(${new Date(row[column.name]).getTime()})/`;
+							}
+						});
+
 						foreignKeys.forEach(function(foreignKey){
 							row[foreignKey.table] = {
 								"__deferred":{
