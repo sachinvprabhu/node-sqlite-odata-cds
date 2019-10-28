@@ -8,6 +8,8 @@ module.exports = function(type){
 			return "Edm.Single";
 		case "NUMERIC":
 			return "Edm.Double";
+		case "DATETIME":
+			return "Edm.DateTime";
 		default : return "Edm.String";
 	}
 }
