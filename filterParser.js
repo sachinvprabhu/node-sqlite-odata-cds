@@ -16,6 +16,12 @@ module.exports = function(query){
 		query = query.replace(substringQuery,`${column} LIKE '${value}'`);
 	}
 	
+	var dateField;
+	while(dateField = query.match(/ datetime\'[0-9T\-\:]+\'/," ")){
+		var value = query.match(/ datetime\'[0-9T\-\:]+\'/," ").toString();
+		query = query.replace(value,value.replace("datetime\'","datetime(\'").replace(/\'$/,"\')"));
+	}
+
 	var numbers = query.match(/ [0-9\.]+[lf]/g);
 	
 	if(numbers){
@@ -23,6 +29,8 @@ module.exports = function(query){
 			query = query.replace(numberString,numberString.substr(0,numberString.length-1));
 		})
 	}
+
+	query.match(/ datetime\'[0-9\T\-\:]+\'/," ")
 	
 	query = query.replace(/ gt /g,">")
 	.replace(/ ge /g,">=")
